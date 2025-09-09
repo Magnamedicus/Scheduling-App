@@ -7,9 +7,9 @@ const TOTAL_BLOCKS = BLOCKS_PER_DAY * DAYS.length;
 
 
 export interface MeetingTime {
-    day: string;   // "monday".."sunday"
-    start: number; // e.g., 900
-    end: number;   // e.g., 1030
+    day: string;
+    start: number;
+    end: number;   
 }
 
 export interface Obligation {
@@ -600,67 +600,67 @@ function proofreadStudyingRuns(
         breakBlocks = 4, // 1 hour (4 × 15m)
         thresholdBlocks, // if omitted, use max course maxStretch
     }: { breakBlocks?: number; thresholdBlocks?: number } = {}
-) {
+): void {
     const BPH = BLOCKS_PER_HOUR;
-
 
     const defaultThreshold =
         obligations
             .filter(o => Array.isArray(o.meetingTimes) && o.meetingTimes.length > 0)
-            .reduce((m, o) => Math.max(m, Math.max(1, Math.round(o.maxStretch * BPH))), 0) || 8;
+            .reduce(
+                (m, o) => Math.max(m, Math.max(1, Math.round(o.maxStretch * BPH))),
+                0
+            ) || 8;
 
     const THRESH = Math.max(1, thresholdBlocks ?? defaultThreshold);
 
     const isStudyingCell = (v: string | null) =>
         typeof v === "string" && v.endsWith("(Studying)");
-    const isMeetingCell = (v: string | null) =>
-        typeof v === "string" && v.includes("(Class Meeting)");
-    const isSleepCell = (v: string | null) =>
-        typeof v === "string" && /sleep/i.test(v);
 
+    // Pass 1: enforce breaks after long runs
     for (const day of DAYS) {
         let run = 0;
+        let runStart = -1;
 
         for (let i = 0; i < BLOCKS_PER_DAY; i++) {
             const v = schedule[day][i];
 
-
             if (isStudyingCell(v) && !isNightIdx(i)) {
+                if (run === 0) runStart = i;
                 run++;
 
                 if (run > THRESH) {
-
                     let converted = 0;
                     let j = i;
-
                     while (j < BLOCKS_PER_DAY && converted < breakBlocks) {
-                        const cur = schedule[day][j];
-
-
-                        if (!isStudyingCell(cur) || isNightIdx(j)) break;
-
-
+                        if (!isStudyingCell(schedule[day][j]) || isNightIdx(j)) break;
                         schedule[day][j] = "Break";
                         converted++;
                         j++;
                     }
-
-
                     run = 0;
+                    runStart = -1;
                     i = j - 1;
                 }
-            } else {
 
-                run = 0;
-
-
-                if (isMeetingCell(v) || isSleepCell(v)) {
+                // end of run → check its length
+                if (i === BLOCKS_PER_DAY - 1 || !isStudyingCell(schedule[day][i + 1])) {
+                    if (run > 0 && run < 2 && runStart >= 0) {
+                        // nuke any study run < 30m (2 slots)
+                        for (let k = runStart; k <= i; k++) {
+                            schedule[day][k] = null;
+                        }
+                    }
                     run = 0;
+                    runStart = -1;
                 }
+            } else {
+                run = 0;
+                runStart = -1;
             }
         }
     }
 }
+
 
 
 
@@ -673,61 +673,96 @@ function fillDaytimeGapsByDeficit(
     blocked: Set<string>,
     obligations: Obligation[],
     targets: Map<string, number>
-) {
-    // counts
-    const counts = new Map<string, number>();
-    for (const o of obligations) counts.set(o.id, 0);
-    for (const day of DAYS) {
-        for (let i = 0; i < BLOCKS_PER_DAY; i++) {
-            const v = schedule[day][i];
-            if (!v) continue;
-            const o = obligations.find((x) => cellBelongsTo(x, v));
-            if (o) counts.set(o.id, (counts.get(o.id) ?? 0) + 1);
+): void {
+    // Helper to find a task that still has remaining deficit
+    const pickTask = (): Obligation | null => {
+        for (const o of obligations) {
+            const remaining = targets.get(o.id) ?? 0;
+            if (remaining > 0) return o;
         }
-    }
-
-    // deficits
-    type Need = { task: Obligation; deficit: number };
-    const needs: Need[] = [];
-    for (const o of obligations) {
-        if (looksLikeSleep(o)) continue;
-        const tgt = targets.get(o.id) ?? 0;
-        const cur = counts.get(o.id) ?? 0;
-        const deficit = Math.max(0, tgt - cur);
-        if (deficit > 0) needs.push({ task: o, deficit });
-    }
-
-
-    needs.sort(
-        (a, b) =>
-            b.deficit - a.deficit ||
-            (b.task.preferredTimeBlocks?.includes("evening") ? 1 : 0) -
-            (a.task.preferredTimeBlocks?.includes("evening") ? 1 : 0)
-    );
+        return null;
+    };
 
     for (const day of DAYS) {
-        for (let i = 0; i < BLOCKS_PER_DAY; i++) {
-            if (isNightIdx(i)) continue; // daytime/evening only
-            const key = `${day}:${i}`;
-            if (schedule[day][i] !== null || blocked.has(key)) continue;
-            if (schedule[day][i] === "Break") continue; // keep breaks intact (redundant due to null check)
+        let i = 0;
 
-            // choose the first task that fits here and still has deficit
-            for (const n of needs) {
-                if (n.deficit <= 0) continue;
-                if (!canUse(n.task, day, i, blocked, schedule)) continue;
-
-                // label study vs general
-                schedule[day][i] = isCourse(n.task)
-                    ? `${n.task.name} (Studying)`
-                    : n.task.name;
-
-                n.deficit--;
-                break;
+        while (i < BLOCKS_PER_DAY) {
+            // skip filled or blocked cells
+            if (schedule[day][i] !== null || blocked.has(`${day}:${i}`)) {
+                i++;
+                continue;
             }
+
+            // measure contiguous free gap
+            let spanLen = 0;
+            let j = i;
+            while (
+                j < BLOCKS_PER_DAY &&
+                schedule[day][j] === null &&
+                !blocked.has(`${day}:${j}`)
+                ) {
+                spanLen++;
+                j++;
+            }
+
+            // if gap is only 1 slot (15 min), leave it empty
+            if (spanLen === 1) {
+                i = j; // skip over the gap
+                continue;
+            }
+
+            // otherwise fill the gap
+            let k = i;
+            while (k < j) {
+                const task = pickTask();
+                if (!task) break;
+
+                const remaining = targets.get(task.id) ?? 0;
+                if (remaining <= 0) {
+                    k++;
+                    continue;
+                }
+
+                // assign this slot
+                schedule[day][k] = isCourse(task)
+                    ? `${task.name} (Studying)`
+                    : task.name;
+
+                targets.set(task.id, remaining - 1);
+                k++;
+            }
+
+            // move index to end of gap
+            i = j;
         }
     }
 }
+
+
+function enforceMinRunLengths(schedule: Schedule, minSlots = 2): void {
+    for (const day of DAYS) {
+        let i = 0;
+        while (i < BLOCKS_PER_DAY) {
+            const label = schedule[day][i];
+            if (!label) { i++; continue; }
+
+            // measure run length
+            let j = i + 1;
+            while (j < BLOCKS_PER_DAY && schedule[day][j] === label) j++;
+
+            const runLen = j - i;
+            if (runLen < minSlots) {
+                for (let k = i; k < j; k++) {
+                    schedule[day][k] = null;
+                }
+            }
+
+            i = j;
+        }
+    }
+}
+
+
 
 
 
@@ -786,6 +821,7 @@ export function generateSchedule(categories: Category[]): Schedule {
     fillDaytimeGapsByDeficit(best, blocked, obligations, targets);
 
     proofreadStudyingRuns(best, obligations);
+    enforceMinRunLengths(best, 2);
 
     return best;
 }

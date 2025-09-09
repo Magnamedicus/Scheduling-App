@@ -1,9 +1,8 @@
 // app/components/scheduler.tsx
-import React, { useState } from "react";
+import React, { useState, forwardRef, useImperativeHandle } from "react";
 import { generateSchedule } from "../utils/simulatedAnnealingScheduler";
 import type { Schedule, Category } from "../utils/simulatedAnnealingScheduler";
 import { ScheduleGrid } from "./ScheduleGrid";
-
 
 const CATEGORIES: Category[] = [
     {
@@ -47,12 +46,9 @@ const CATEGORIES: Category[] = [
                 ],
                 preferredTimeBlocks: ["morning", "afternoon"],
                 dependencyIds: [],
-            }
-
-
+            },
         ],
     },
-
     {
         id: "rest",
         name: "Sleep",
@@ -68,7 +64,6 @@ const CATEGORIES: Category[] = [
             },
         ],
     },
-
     {
         id: "social",
         name: "Socializing",
@@ -94,7 +89,8 @@ const CATEGORIES: Category[] = [
     },
 ];
 
-export default function Scheduler() {
+// forwardRef lets us expose methods to parent (Home)
+const Scheduler = forwardRef((props, ref) => {
     const [schedule, setSchedule] = useState<Schedule | null>(null);
     const [ms, setMs] = useState<number | null>(null);
 
@@ -105,19 +101,30 @@ export default function Scheduler() {
             const t1 = performance.now();
             setSchedule(result);
             setMs(t1 - t0);
-            console.log(`Generated Weekly Schedule in ${Math.round(t1 - t0)} ms`, result);
+            console.log(
+                `Generated Weekly Schedule in ${Math.round(t1 - t0)} ms`,
+                result
+            );
         } catch (err) {
             console.error("❌ Error generating schedule:", err);
         }
     };
 
+    // expose `generate()` so Home can call it
+    useImperativeHandle(ref, () => ({
+        generate: handleGenerateSchedule,
+    }));
+
     return (
         <div style={{ padding: 16 }}>
-            <button type="button" onClick={handleGenerateSchedule} style={{ padding: "8px 12px", marginBottom: 12 }}>
-                Show Schedule
-            </button>
-            {ms !== null && <div style={{ marginBottom: 8 }}>Generated in {Math.round(ms)} ms</div>}
+            {ms !== null && (
+                <div style={{ marginBottom: 8 }}>
+                    Generated in {Math.round(ms)} ms
+                </div>
+            )}
             {schedule && <ScheduleGrid schedule={schedule} />}
         </div>
     );
-}
+});
+
+export default Scheduler;

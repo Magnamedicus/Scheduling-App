@@ -14,8 +14,8 @@ const CATEGORIES: Category[] = [
             {
                 id: "bio101",
                 name: "Biology-101",
-                relativePriority: 0.6,
-                maxStretch: 1.5,
+                relativePriority: 0.4,
+                maxStretch: 1.0,
                 meetingTimes: [
                     { day: "monday", start: 800, end: 900 },
                     { day: "wednesday", start: 800, end: 900 },
@@ -27,7 +27,7 @@ const CATEGORIES: Category[] = [
             {
                 id: "eng204",
                 name: "English-204",
-                relativePriority: 0.3,
+                relativePriority: 0.2,
                 maxStretch: 2.0,
                 meetingTimes: [
                     { day: "tuesday", start: 1330, end: 1530 },
@@ -36,6 +36,20 @@ const CATEGORIES: Category[] = [
                 preferredTimeBlocks: ["morning", "afternoon"],
                 dependencyIds: [],
             },
+            {
+                id: "chem301",
+                name: "Chemistry-301",
+                relativePriority: 0.4,
+                maxStretch: 2.0,
+                meetingTimes: [
+                    { day: "tuesday", start: 900, end: 1100 },
+                    { day: "thursday", start: 900, end: 1100 },
+                ],
+                preferredTimeBlocks: ["morning", "afternoon"],
+                dependencyIds: [],
+            }
+
+
         ],
     },
 

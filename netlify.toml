@@ -1,6 +1,6 @@
 [build]
   command = "npm run build"
-  publish = "dist"
+  publish = "build/client"
 
 # Redirect all routes to index.html for React Router
 [[redirects]]

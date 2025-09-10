@@ -9,7 +9,7 @@ const TOTAL_BLOCKS = BLOCKS_PER_DAY * DAYS.length;
 export interface MeetingTime {
     day: string;
     start: number;
-    end: number;   
+    end: number;
 }
 
 export interface Obligation {

@@ -2,11 +2,10 @@
 import React, { useMemo } from "react";
 import { DAYS, BLOCKS_PER_DAY } from "../utils/scheduleHelpers";
 import type { Schedule } from "../utils/simulatedAnnealingScheduler";
-// Adjust this import path to match where you saved the CSS
 import "../css/ScheduleGrid.css";
 
 const BLOCKS_PER_HOUR = Math.floor(BLOCKS_PER_DAY / 24);
-const ROW_PX = 20; // must match .schedule__day { grid-template-rows: repeat(96, 20px); }
+const ROW_PX = 20; // must match .schedule__day grid row height
 
 function idxToTimeLabel(idx: number): string {
     const h = Math.floor(idx / BLOCKS_PER_HOUR);
@@ -19,17 +18,13 @@ function idxToTimeLabel(idx: number): string {
 
 type DayBlock = {
     label: string;
-    startIdx: number; // 0..95
-    length: number;   // number of 15-min slots
+    startIdx: number;
+    length: number;
 };
 
-/**
- * Group contiguous slots with the same non-null label into blocks.
- */
 function buildBlocksForDay(daySlots: (string | null)[]): DayBlock[] {
     const blocks: DayBlock[] = [];
     let i = 0;
-
     while (i < BLOCKS_PER_DAY) {
         const label = daySlots[i];
         if (!label) {
@@ -44,34 +39,45 @@ function buildBlocksForDay(daySlots: (string | null)[]): DayBlock[] {
     return blocks;
 }
 
-/**
- * Map a task label to a block type modifier for color-coding.
- * Tweak this as needed to match your task naming.
- */
-function taskToType(label: string): "study" | "class" | "sleep" | "family" | "friends" | "study" {
+function taskToType(
+    label: string
+): "study" | "class" | "sleep" | "family" | "friends" | "study" {
     const l = label.toLowerCase();
-
-    // common signals
-    if (l.includes("sleep") || l === "sleep" || l === "nightsleep") return "sleep";
-    if (l.includes("class") || l.includes("lecture") || l.includes("lab") || l.match(/\b(eng|bio|math|chem|cs)\b/)) return "class";
+    if (l.includes("sleep") || l === "nightsleep") return "sleep";
+    if (
+        l.includes("class") ||
+        l.includes("lecture") ||
+        l.includes("lab") ||
+        l.match(/\b(eng|bio|math|chem|cs)\b/)
+    )
+        return "class";
     if (l.includes("family")) return "family";
     if (l.includes("friend")) return "friends";
-    if (l.includes("study") || l.includes("studying") || l.includes("read") || l.includes("homework")) return "study";
-
-    // defaults for common names in your mock data
-    if (l === "biolog y-101".replace(" ", "") || l === "biology-101" || l === "english-204") return "class";
+    if (l.includes("study") || l.includes("read") || l.includes("homework"))
+        return "study";
+    if (l === "biology-101" || l === "english-204") return "class";
     if (l === "friendhang") return "friends";
     if (l === "familytime") return "family";
-
     return "study";
 }
 
-export function ScheduleGrid({ schedule }: { schedule: Schedule }) {
-    // Precompute blocks per day
+interface Props {
+    schedule: Schedule;
+    onBlockClick?: (
+        day: string,
+        block: DayBlock,
+        blockType: string
+    ) => void;
+}
+
+export function ScheduleGrid({ schedule, onBlockClick }: Props) {
     const dayBlocks = useMemo(() => {
         const result: Record<string, DayBlock[]> = {};
         for (const day of DAYS) {
-            result[day] = buildBlocksForDay(schedule[day] || Array(BLOCKS_PER_DAY).fill(null));
+            result[day] =
+                buildBlocksForDay(
+                    schedule[day] || Array(BLOCKS_PER_DAY).fill(null)
+                );
         }
         return result;
     }, [schedule]);
@@ -84,16 +90,19 @@ export function ScheduleGrid({ schedule }: { schedule: Schedule }) {
           <span className="legend__swatch legend__swatch--study" /> Study
         </span>
                 <span className="legend__item">
-          <span className="legend__swatch legend__swatch--class" /> Class Meeting
+          <span className="legend__swatch legend__swatch--class" /> Class
+          Meeting
         </span>
                 <span className="legend__item">
           <span className="legend__swatch legend__swatch--sleep" /> Sleep
         </span>
                 <span className="legend__item">
-          <span className="legend__swatch legend__swatch--family" /> Family Time
+          <span className="legend__swatch legend__swatch--family" /> Family
+          Time
         </span>
                 <span className="legend__item">
-          <span className="legend__swatch legend__swatch--friends" /> Friend Hang
+          <span className="legend__swatch legend__swatch--friends" /> Friend
+          Hang
         </span>
             </div>
 
@@ -107,7 +116,7 @@ export function ScheduleGrid({ schedule }: { schedule: Schedule }) {
                 ))}
             </div>
 
-            {/* Body: time column + 7 day columns */}
+            {/* Body */}
             <div className="schedule__body">
                 {/* Time Column */}
                 <div className="schedule__time">
@@ -115,7 +124,9 @@ export function ScheduleGrid({ schedule }: { schedule: Schedule }) {
                         <div
                             key={`time-${idx}`}
                             className="schedule__time-slot"
-                            data-label={idx % BLOCKS_PER_HOUR === 0 ? idxToTimeLabel(idx) : ""}
+                            data-label={
+                                idx % BLOCKS_PER_HOUR === 0 ? idxToTimeLabel(idx) : ""
+                            }
                         />
                     ))}
                 </div>
@@ -123,20 +134,20 @@ export function ScheduleGrid({ schedule }: { schedule: Schedule }) {
                 {/* Day Columns */}
                 {DAYS.map((day) => (
                     <div key={day} className="schedule__day">
-                        {/* Optional hoverable cells if you want an interactive grid (not required) */}
                         {Array.from({ length: BLOCKS_PER_DAY }).map((_, idx) => (
-                            <div key={`${day}-cell-${idx}`} className="schedule__cell" />
+                            <div
+                                key={`${day}-cell-${idx}`}
+                                className="schedule__cell"
+                            />
                         ))}
 
-                        {/* Render blocks */}
                         {dayBlocks[day].map((b, i) => {
                             const blockType = taskToType(b.label);
                             const topPx = b.startIdx * ROW_PX;
                             const heightPx = b.length * ROW_PX;
 
-                            // Build a short time label for the block meta
-                            const startLabel = idxToTimeLabel(b.startIdx).replace(" ", "");
-                            const endLabel = idxToTimeLabel(b.startIdx + b.length).replace(" ", "");
+                            const startLabel = idxToTimeLabel(b.startIdx);
+                            const endLabel = idxToTimeLabel(b.startIdx + b.length);
 
                             return (
                                 <div
@@ -144,16 +155,18 @@ export function ScheduleGrid({ schedule }: { schedule: Schedule }) {
                                     className={`block block--${blockType}`}
                                     style={
                                         {
-                                            // Using CSS variables consumed by the stylesheet
                                             ["--top" as any]: `${topPx}px`,
                                             ["--height" as any]: `${heightPx}px`,
                                         } as React.CSSProperties
                                     }
                                     title={`${b.label} • ${startLabel}–${endLabel}`}
+                                    onClick={() =>
+                                        onBlockClick?.(day, b, blockType)
+                                    }
                                 >
                                     <div className="block__title">{b.label}</div>
                                     <div className="block__meta">
-                                        {startLabel}–{endLabel}
+                                        {startLabel} – {endLabel}
                                     </div>
                                 </div>
                             );

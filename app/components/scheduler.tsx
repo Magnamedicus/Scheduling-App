@@ -1,8 +1,13 @@
 // app/components/scheduler.tsx
-import React, { useState, forwardRef, useImperativeHandle } from "react";
+import React, {
+    useState,
+    forwardRef,
+    useImperativeHandle,
+} from "react";
 import { generateSchedule } from "../utils/simulatedAnnealingScheduler";
 import type { Schedule, Category } from "../utils/simulatedAnnealingScheduler";
 import { ScheduleGrid } from "./ScheduleGrid";
+import "../css/Modal.css";
 
 const CATEGORIES: Category[] = [
     {
@@ -89,11 +94,23 @@ const CATEGORIES: Category[] = [
     },
 ];
 
-// forwardRef lets us expose methods to parent (Home)
 const Scheduler = forwardRef((props, ref) => {
     const [schedule, setSchedule] = useState<Schedule | null>(null);
     const [ms, setMs] = useState<number | null>(null);
 
+    // modal state
+    const [modalOpen, setModalOpen] = useState(false);
+    const [selected, setSelected] = useState<{
+        day: string;
+        startIdx: number;
+        length: number;
+        label: string;
+    } | null>(null);
+
+    const [newLabel, setNewLabel] = useState<string>("");
+    const [newLength, setNewLength] = useState<number>(1);
+
+    // Generate schedule
     const handleGenerateSchedule = () => {
         try {
             const t0 = performance.now();
@@ -115,6 +132,72 @@ const Scheduler = forwardRef((props, ref) => {
         generate: handleGenerateSchedule,
     }));
 
+    // Block clicked
+    const handleBlockClick = (
+        day: string,
+        block: { startIdx: number; length: number; label: string },
+        blockType: string
+    ) => {
+        setSelected(block ? { ...block, day } : null);
+        setNewLabel(block.label);
+        setNewLength(block.length);
+        setModalOpen(true);
+    };
+
+    // Clear entire contiguous block
+    const clearBlock = () => {
+        if (!schedule || !selected) return;
+        const updated = { ...schedule, [selected.day]: [...schedule[selected.day]] };
+        for (
+            let i = selected.startIdx;
+            i < selected.startIdx + selected.length;
+            i++
+        ) {
+            updated[selected.day][i] = null;
+        }
+        setSchedule(updated);
+        setModalOpen(false);
+    };
+
+    // Replace block with another obligation, adjusting length
+    const updateBlock = () => {
+        if (!schedule || !selected) return;
+        const updated = { ...schedule, [selected.day]: [...schedule[selected.day]] };
+
+        // clear old block
+        for (
+            let i = selected.startIdx;
+            i < selected.startIdx + selected.length;
+            i++
+        ) {
+            updated[selected.day][i] = null;
+        }
+
+        // apply new block
+        for (
+            let i = selected.startIdx;
+            i < selected.startIdx + newLength;
+            i++
+        ) {
+            if (i < updated[selected.day].length) {
+                updated[selected.day][i] = newLabel;
+            }
+        }
+
+        setSchedule(updated);
+        setModalOpen(false);
+    };
+
+    // obligations list for dropdown
+    const allObligations = CATEGORIES.flatMap((cat) =>
+        cat.children.map((child) => child.name)
+    );
+
+    // compute end time preview for slider
+    const blockEnd = selected
+        ? selected.startIdx + newLength
+        : null;
+
     return (
         <div style={{ padding: 16 }}>
             {ms !== null && (
@@ -122,7 +205,72 @@ const Scheduler = forwardRef((props, ref) => {
                     Generated in {Math.round(ms)} ms
                 </div>
             )}
-            {schedule && <ScheduleGrid schedule={schedule} />}
+            {schedule && (
+                <ScheduleGrid
+                    schedule={schedule}
+                    onBlockClick={handleBlockClick}
+                />
+            )}
+
+            {/* Modal */}
+            {modalOpen && selected && (
+                <div
+                    className="modal-overlay"
+                    onClick={() => setModalOpen(false)}
+                >
+                    <div
+                        className="modal-card"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <h3>Modify Block</h3>
+                        <p>
+                            {selected.label} • {selected.length * 15} minutes
+                        </p>
+
+                        {/* Form panel */}
+                        <div className="modal-form">
+                            <label>
+                                Change to:
+                                <select
+                                    value={newLabel}
+                                    onChange={(e) => setNewLabel(e.target.value)}
+                                >
+                                    {allObligations.map((name) => (
+                                        <option key={name} value={name}>
+                                            {name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label>
+                                Length: {newLength * 15} minutes
+                                <input
+                                    type="range"
+                                    min={1}
+                                    max={selected.length * 2}
+                                    step={1}
+                                    value={newLength}
+                                    onChange={(e) => setNewLength(Number(e.target.value))}
+                                />
+                            </label>
+
+                            {blockEnd && (
+                                <p style={{ fontSize: "0.9rem", color: "#9ca3af" }}>
+                                    Adjusted block runs from index {selected.startIdx} to{" "}
+                                    {blockEnd}
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="modal-actions">
+                            <button onClick={updateBlock}>Save</button>
+                            <button onClick={clearBlock}>Clear</button>
+                            <button onClick={() => setModalOpen(false)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 });

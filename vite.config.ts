@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vitejs.dev/config/
+// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -12,9 +12,9 @@ export default defineConfig({
     port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
     host: '0.0.0.0',
     allowedHosts: [
-      'scheduling-app-production-8df1.up.railway.app'  // 👈 your Railway domain
+      'scheduling-app-production-8df1.up.railway.app' // 👈 your Railway domain
     ]
-  }git add ,
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true

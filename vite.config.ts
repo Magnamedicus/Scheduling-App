@@ -12,7 +12,7 @@ export default defineConfig({
     port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
     host: '0.0.0.0',
     allowedHosts: [
-      'https://scheduling-app-production-61be.up.railway.app/' // 👈 your Railway domain
+      'scheduling-app-production-61be.up.railway.app' // 👈 your Railway domain
     ]
   },
   build: {

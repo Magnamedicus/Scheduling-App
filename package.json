@@ -10,10 +10,12 @@
     "start": "vite preview --port $PORT --host 0.0.0.0"
   },
   "dependencies": {
+    "@tailwindcss/vite": "^4.1.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router": "^7.0.0",
-    "react-router-dom": "^7.0.0"
+    "react-router-dom": "^7.0.0",
+    "tailwindcss": "^4.1.13"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",
